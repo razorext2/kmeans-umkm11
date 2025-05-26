@@ -11,4 +11,9 @@ class Result extends Model
         'umkm_id',
         'final_cluster'
     ];
+
+    public function umkm()
+    {
+        return $this->belongsTo(Umkm::class);
+    }
 }

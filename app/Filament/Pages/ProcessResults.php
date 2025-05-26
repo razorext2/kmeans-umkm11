@@ -2,16 +2,20 @@
 
 namespace App\Filament\Pages;
 
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Pages\Page;
 use App\Models\Umkm;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Pages\Page;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
-class ProcessResults extends Page
+class ProcessResults extends Page implements HasForms
 {
+    use InteractsWithForms;
+
     protected static ?string $navigationIcon = 'heroicon-o-cog';
 
     protected static string $view = 'filament.pages.process-results';
@@ -27,6 +31,8 @@ class ProcessResults extends Page
     public ?int $clusters = 3;
 
     public ?int $iterations = 100;
+
+    public ?bool $showIterations = false;
 
     public function mount(): void
     {
@@ -110,12 +116,54 @@ class ProcessResults extends Page
                 return;
             }
 
-            if (!isset($results['labels']) || !isset($results['centroids'])) {
-                $this->getErrorMessage('Format output tidak sesuai ekspektasi', 'Format output tidak sesuai ekspektasi.');
+            // hapus terlebih dahulu data yang lama
+            \App\Models\Centroid::truncate();
+            \App\Models\Iteration::truncate();
+            \App\Models\Result::truncate();
+
+            try {
+                DB::beginTransaction();
+
+                foreach ($results['history'] as $iterationData) {
+                    $iter = $iterationData['iteration'];
+
+                    foreach ($iterationData['centroids'] as $i => $centroid) {
+                        \App\Models\Centroid::create([
+                            'iteration' => $iter,
+                            'cluster_number' => $i,
+                            'centroid_modal' => $centroid[0],
+                            'centroid_penghasilan' => $centroid[1],
+                        ]);
+                    }
+
+                    foreach ($iterationData['points'] as $point) {
+                        \App\Models\Iteration::create([
+                            'iteration' => $iter,
+                            'umkm_id' => $point['umkm_id'],
+                            'distances' => json_encode($point['distances']),
+                            'assigned_cluster' => $point['assigned_cluster'],
+                        ]);
+                    }
+                }
+
+                foreach ($results['final_labels'] as $result) {
+                    \App\Models\Result::create([
+                        'umkm_id' => $result['id'],
+                        'final_cluster' => $result['cluster'],
+                    ]);
+                }
+
+                DB::commit();
+                $this->showIterations = true;
+                $this->getSuccessMessage('Berhasil', 'Data berhasil diproses.');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                $this->getErrorMessage('Terjadi kesalahan', 'Terjadi kesalahan: ' . $e->getMessage());
+                Log::error('KMeans processing error: ' . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
                 return;
             }
-
-            dd($results);
         } catch (\Exception $e) {
             $this->getErrorMessage('Terjadi kesalahan', 'Terjadi kesalahan: ' . $e->getMessage());
             Log::error('KMeans processing error: ' . $e->getMessage(), [

@@ -7,4 +7,12 @@
             <span wire:loading> Memproses... </span>
         </x-filament::button>
     </form>
+
+    {{-- @if ($showIterations) --}}
+    <div class="flex flex-col gap-4">
+        <livewire:iteration-table />
+        <livewire:centroid-table />
+        <livewire:result-table />
+    </div>
+    {{-- @endif --}}
 </x-filament-panels::page>

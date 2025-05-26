@@ -13,4 +13,9 @@ class Iteration extends Model
         'distances',
         'assigned_cluster'
     ];
+
+    public function umkm()
+    {
+        return $this->belongsTo(Umkm::class);
+    }
 }
