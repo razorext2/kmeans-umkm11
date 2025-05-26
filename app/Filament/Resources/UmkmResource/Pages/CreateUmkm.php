@@ -9,5 +9,6 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateUmkm extends CreateRecord
 {
     protected static string $resource = UmkmResource::class;
-    protected static ?string $title = 'Tambah Data UMKM';
+
+    protected static ?string $title = 'Tambah UMKM';
 }

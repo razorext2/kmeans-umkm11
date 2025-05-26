@@ -10,10 +10,13 @@ class EditUmkm extends EditRecord
 {
     protected static string $resource = UmkmResource::class;
 
+    protected static ?string $title = 'Ubah UMKM';
+
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->label('Hapus'),
         ];
     }
 }
