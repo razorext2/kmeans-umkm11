@@ -34,6 +34,10 @@ class ProcessResults extends Page implements HasForms
 
     public ?bool $showIterations = false;
 
+    public ?bool $showRefreshButton = false;
+
+    public array $centroidLogs = [];
+
     public function mount(): void
     {
         $this->form->fill([
@@ -53,6 +57,120 @@ class ProcessResults extends Page implements HasForms
                 ->label('Jumlah Iterasi')
                 ->required()
                 ->numeric(),
+        ];
+    }
+
+    private function runKmeansPlusPlus(array $data, int $clusters, int $iterations): array
+    {
+        $points = array_map(function ($item) {
+            return [$item['modal'], $item['penghasilan']];
+        }, $data);
+
+        $ids = array_column($data, 'id');
+        $n = count($points);
+        $centroids = [];
+        $this->centroidLogs = [];
+
+        // Pilih centroid pertama secara manual dari data index ke-3
+        if (!isset($points[2])) {
+            throw new \Exception("Data index ke-3 tidak tersedia, data kurang dari 4 elemen.");
+        }
+
+        $centroids[] = $points[2];
+        $this->centroidLogs[] = [
+            'step' => 1,
+            'chosen_index' => 2,
+            'centroid' => $points[2],
+            'note' => 'Centroid pertama ditentukan manual'
+        ];
+
+        // Pilih centroid berikutnya berdasarkan probabilitas
+        while (count($centroids) < $clusters) {
+            $distances = [];
+
+            foreach ($points as $point) {
+                $minDist = INF;
+                foreach ($centroids as $c) {
+                    $d = pow($point[0] - $c[0], 2) + pow($point[1] - $c[1], 2);
+                    $minDist = min($minDist, $d);
+                }
+                $distances[] = $minDist;
+            }
+
+            $total = array_sum($distances);
+            $probabilities = array_map(fn($d) => $d / $total, $distances);
+            $r = mt_rand() / mt_getrandmax();
+            $acc = 0;
+
+            foreach ($probabilities as $i => $p) {
+                $acc += $p;
+                if ($r <= $acc) {
+                    $centroids[] = $points[$i];
+                    $this->centroidLogs[] = [
+                        'step' => count($centroids),
+                        'chosen_index' => $i,
+                        'centroid' => $points[$i],
+                        'probability' => round($p, 4),
+                        'note' => 'Dipilih berdasarkan probabilitas akumulatif'
+                    ];
+                    break;
+                }
+            }
+        }
+
+        $history = [];
+        $labels = array_fill(0, $n, -1);
+
+        for ($iter = 1; $iter <= $iterations; $iter++) {
+            $iterationData = ['iteration' => $iter, 'centroids' => $centroids, 'points' => []];
+
+            // Hitung jarak & assign cluster
+            foreach ($points as $i => $point) {
+                $distances = array_map(fn($c) => sqrt(pow($point[0] - $c[0], 2) + pow($point[1] - $c[1], 2)), $centroids);
+                $minIndex = array_keys($distances, min($distances))[0];
+
+                $labels[$i] = $minIndex;
+                $iterationData['points'][] = [
+                    'umkm_id' => $ids[$i],
+                    'distances' => $distances,
+                    'assigned_cluster' => $minIndex
+                ];
+            }
+
+            // Update centroid
+            $newCentroids = [];
+            for ($k = 0; $k < $clusters; $k++) {
+                $clusterPoints = array_values(array_filter($points, fn($_, $i) => $labels[$i] == $k, ARRAY_FILTER_USE_BOTH));
+                if (count($clusterPoints) > 0) {
+                    $x = array_sum(array_column($clusterPoints, 0)) / count($clusterPoints);
+                    $y = array_sum(array_column($clusterPoints, 1)) / count($clusterPoints);
+                    $newCentroids[] = [$x, $y];
+                } else {
+                    $newCentroids[] = $centroids[$k]; // tetap
+                }
+            }
+
+            $history[] = $iterationData;
+
+            if ($newCentroids === $centroids) {
+                break;
+            }
+
+            $centroids = $newCentroids;
+        }
+
+        $finalLabels = [];
+        foreach ($labels as $i => $cluster) {
+            $finalLabels[] = [
+                'id' => $ids[$i],
+                'cluster' => $cluster
+            ];
+        }
+
+        return [
+            'history' => $history,
+            'final_labels' => $finalLabels,
+            'final_centroids' => $centroids
         ];
     }
 
@@ -76,95 +194,49 @@ class ProcessResults extends Page implements HasForms
                 return;
             }
 
-            $inputData = [
-                'iterations' => (int)$data['iterations'],
-                'clusters' => (int)$data['clusters'],
-                'data' => $umkm->toArray()
-            ];
+            $results = $this->runKmeansPlusPlus($umkm->toArray(), $data['clusters'], $data['iterations']);
 
-            $inputPath = storage_path('app/kmeans_input.json');
-            $jsonData = json_encode($inputData, JSON_PRETTY_PRINT);
-
-            if ($jsonData === false) {
-                $this->getErrorMessage('Gagal mengencode data UMKM', 'Gagal mengencode data UMKM.');
-                return;
-            }
-
-            if (file_put_contents($inputPath, $jsonData) === false) {
-                $this->getErrorMessage('Gagal menyimpan file input untuk pemrosesan', 'Gagal menyimpan file input untuk pemrosesan.');
-                return;
-            }
-
-            $pythonScript = base_path('python/kmeans.py');
-            if (!file_exists($pythonScript)) {
-                $this->getErrorMessage('File script Python tidak ditemukan', 'File script Python tidak ditemukan.');
-                return;
-            }
-
-            $command = sprintf('python %s %s', escapeshellarg($pythonScript), escapeshellarg($inputPath));
-            $output = Process::run($command);
-
-            if ($output === null) {
-                $this->getErrorMessage('Gagal menjalankan script Python', 'Gagal menjalankan script Python.');
-                return;
-            }
-
-            $results = json_decode($output->output(), true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $this->getErrorMessage('Format output tidak valid', 'Format output tidak valid: ' . json_last_error_msg());
-                return;
-            }
-
-            // hapus terlebih dahulu data yang lama
             \App\Models\Centroid::truncate();
             \App\Models\Iteration::truncate();
             \App\Models\Result::truncate();
 
-            try {
-                DB::beginTransaction();
+            DB::beginTransaction();
 
-                foreach ($results['history'] as $iterationData) {
-                    $iter = $iterationData['iteration'];
+            foreach ($results['history'] as $iterationData) {
+                $iter = $iterationData['iteration'];
 
-                    foreach ($iterationData['centroids'] as $i => $centroid) {
-                        \App\Models\Centroid::create([
-                            'iteration' => $iter,
-                            'cluster_number' => $i,
-                            'centroid_modal' => $centroid[0],
-                            'centroid_penghasilan' => $centroid[1],
-                        ]);
-                    }
-
-                    foreach ($iterationData['points'] as $point) {
-                        \App\Models\Iteration::create([
-                            'iteration' => $iter,
-                            'umkm_id' => $point['umkm_id'],
-                            'distances' => json_encode($point['distances']),
-                            'assigned_cluster' => $point['assigned_cluster'],
-                        ]);
-                    }
-                }
-
-                foreach ($results['final_labels'] as $result) {
-                    \App\Models\Result::create([
-                        'umkm_id' => $result['id'],
-                        'final_cluster' => $result['cluster'],
+                foreach ($iterationData['centroids'] as $i => $centroid) {
+                    \App\Models\Centroid::create([
+                        'iteration' => $iter,
+                        'cluster_number' => $i,
+                        'centroid_modal' => $centroid[0],
+                        'centroid_penghasilan' => $centroid[1],
                     ]);
                 }
 
-                DB::commit();
-                $this->showIterations = true;
-                $this->getSuccessMessage('Berhasil', 'Data berhasil diproses.');
-            } catch (\Exception $e) {
-                DB::rollBack();
-                $this->getErrorMessage('Terjadi kesalahan', 'Terjadi kesalahan: ' . $e->getMessage());
-                Log::error('KMeans processing error: ' . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString()
-                ]);
-                return;
+                foreach ($iterationData['points'] as $point) {
+                    \App\Models\Iteration::create([
+                        'iteration' => $iter,
+                        'umkm_id' => $point['umkm_id'],
+                        'distances' => json_encode($point['distances']),
+                        'assigned_cluster' => $point['assigned_cluster'],
+                    ]);
+                }
             }
+
+            foreach ($results['final_labels'] as $result) {
+                \App\Models\Result::create([
+                    'umkm_id' => $result['id'],
+                    'final_cluster' => $result['cluster'],
+                ]);
+            }
+
+            DB::commit();
+            $this->showIterations = true;
+            $this->getSuccessMessage('Berhasil', 'Data berhasil diproses.');
+            $this->showRefreshButton = true;
         } catch (\Exception $e) {
+            DB::rollBack();
             $this->getErrorMessage('Terjadi kesalahan', 'Terjadi kesalahan: ' . $e->getMessage());
             Log::error('KMeans processing error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
@@ -175,7 +247,8 @@ class ProcessResults extends Page implements HasForms
     public function getSuccessMessage($title, $text)
     {
         Notification::make()
-            ->success()
+            ->icon('heroicon-o-check-circle')
+            ->iconColor('success')
             ->title($title)
             ->body($text)
             ->send();
@@ -184,7 +257,8 @@ class ProcessResults extends Page implements HasForms
     public function getErrorMessage($title, $text)
     {
         Notification::make()
-            ->error()
+            ->icon('heroicon-o-x-circle')
+            ->iconColor('danger')
             ->title($title)
             ->body($text)
             ->send();
