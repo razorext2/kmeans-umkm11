@@ -8,20 +8,12 @@
                 <span wire:loading wire:target="process"> Memproses... </span>
             </x-filament::button>
         </form>
-
-        @if ($showRefreshButton)
-            <x-filament::button wire:click="$refresh()">
-                <span wire:loading.remove wire:target="$refresh"> Refresh Tabel </span>
-                <span wire:loading wire:target="$refresh"> Refreshing... </span>
-            </x-filament::button>
-        @endif
     </div>
 
     {{-- @if ($showIterations) --}}
     <div class="flex flex-col gap-4">
 
-        @if ($centroidLogs && count($centroidLogs) > 0)
-            @php $log = $centroidLogs[0]; @endphp
+        @foreach ($centroidLogs as $log)
             <div class="p-3 bg-gray-100 dark:bg-gray-800 rounded-md">
                 <p>{{ $log['note'] }}</p>
                 <p>Index UMKM: {{ $log['chosen_index'] }}</p>
@@ -30,7 +22,7 @@
                     <p>Probabilitas: {{ $log['probability'] }}</p>
                 @endif
             </div>
-        @endif
+        @endforeach
 
         <livewire:centroid-table />
         <livewire:iteration-table />

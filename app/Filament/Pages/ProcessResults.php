@@ -97,6 +97,7 @@ class ProcessResults extends Page implements HasForms
                 $distances[] = $minDist;
             }
 
+            mt_srand(41);
             $total = array_sum($distances);
             $probabilities = array_map(fn($d) => $d / $total, $distances);
             $r = mt_rand() / mt_getrandmax();
