@@ -31,12 +31,12 @@
                         <nav class="-mx-3 flex flex-1 justify-end">
                             @auth
                                 <a href="{{ url('/dashboard') }}"
-                                    class="rounded-md px-3 py-2 ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] text-gray-800 dark:hover:text-white/80 dark:focus-visible:ring-white">
+                                    class="rounded-md px-3 py-2 ring-1 ring-transparent transition focus:outline-none focus-visible:ring-[#FF2D20] text-gray-800 hover:text-yellow-600/50">
                                     Dashboard
                                 </a>
                             @else
                                 <a href="{{ route('filament.dashboard.auth.login') }}"
-                                    class="rounded-md px-3 py-2 ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] text-gray-800 dark:hover:text-white/80 dark:focus-visible:ring-white">
+                                    class="rounded-md px-3 py-2 ring-1 ring-transparent transition focus:outline-none focus-visible:ring-[#FF2D20] text-gray-800 hover:text-yellow-600/50">
                                     Log in
                                 </a>
                             @endauth
@@ -51,7 +51,7 @@
                             <div id="screenshot-container" class="relative flex w-full flex-1 items-stretch">
                                 <img src="{{ asset('galery/cppx9234-min-991x564.webp') }}"
                                     alt="Laravel documentation screenshot"
-                                    class="aspect-video transition-transform hover:scale-105 duration-500 h-full w-full flex-1 rounded-[10px] object-top object-cover drop-shadow-[0px_4px_34px_rgba(0,0,0,0.06)] dark:hidden"
+                                    class="aspect-video transition-transform hover:scale-105 duration-500 h-full w-full flex-1 rounded-[10px] object-top object-cover drop-shadow-[0px_4px_34px_rgba(0,0,0,0.06)] "
                                     onerror="
                                             document.getElementById('screenshot-container').classList.add('!hidden');
                                             document.getElementById('docs-card').classList.add('!row-span-1');
@@ -60,7 +60,7 @@
                                         " />
                                 <img src="{{ asset('galery/cppx9234-min-991x564.webp') }}"
                                     alt="Laravel documentation screenshot"
-                                    class="hidden transition-transform hover:scale-105 duration-500 aspect-video h-full w-full flex-1 rounded-[10px] object-top object-cover drop-shadow-[0px_4px_34px_rgba(0,0,0,0.25)] dark:block" />
+                                    class="hidden transition-transform hover:scale-105 duration-500 aspect-video h-full w-full flex-1 rounded-[10px] object-top object-cover drop-shadow-[0px_4px_34px_rgba(0,0,0,0.25)] " />
                                 <div
                                     class="absolute -bottom-16 -left-16 h-40 w-[calc(100%_+_8rem)] bg-gradient-to-b from-transparent via-white to-white">
                                 </div>
