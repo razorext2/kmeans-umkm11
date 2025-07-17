@@ -9,6 +9,7 @@
         "php": "^8.2",
         "eightynine/filament-excel-import": "^3.1",
         "filament/filament": "3.3",
+        "filament/notifications": "3.3",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9"
     },

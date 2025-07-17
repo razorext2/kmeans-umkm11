@@ -54,6 +54,8 @@ class DashboardPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
-            ->viteTheme('resources/css/filament/dashboard/theme.css');
+            ->viteTheme('resources/css/filament/dashboard/theme.css')
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s');
     }
 }
